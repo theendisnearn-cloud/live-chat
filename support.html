@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Support Dashboard</title>
+</head>
+<body>
+  <h2>Support Dashboard</h2>
+
+  <div id="log" style="border:1px solid #ccc;height:200px;overflow:auto;"></div>
+
+  <input id="session" placeholder="Session ID" />
+  <input id="reply" placeholder="Type reply..." />
+  <button id="send">Send</button>
+
+  <script>
+    const socket = new WebSocket("ws://localhost:3000");
+
+    socket.onopen = () => {
+      socket.send(JSON.stringify({ type: "support_join" }));
+    };
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "user_message") {
+        document.getElementById("log").innerHTML +=
+          `<div><b>User (${data.sessionId}):</b> ${data.text}</div>`;
+        document.getElementById("session").value = data.sessionId;
+      }
+    };
+
+    document.getElementById("send").onclick = () => {
+      socket.send(JSON.stringify({
+        type: "support_message",
+        sessionId: document.getElementById("session").value,
+        text: document.getElementById("reply").value
+      }));
+      document.getElementById("reply").value = "";
+    };
+  </script>
+</body>
+</html>
