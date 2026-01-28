@@ -1,3 +1,4 @@
+console.log("🧩 chat-widget.js executing");
 (function () {
   const sessionId =
     localStorage.getItem("chat_session") ||
@@ -5,7 +6,7 @@
 
   localStorage.setItem("chat_session", sessionId);
 
-  const socket = new WebSocket("ws://YOUR_DOMAIN_HERE");
+  const socket = new WebSocket("wss://live-chat-4i3s.onrender.com");
 
   // ---- STYLES ----
   const style = document.createElement("style");
@@ -149,3 +150,4 @@
     }
   });
 })();
+
