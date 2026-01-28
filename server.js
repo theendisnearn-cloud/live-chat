@@ -1,68 +1,53 @@
+// server.js
 const express = require('express');
 const path = require('path');
+const { WebSocketServer } = require('wss'); // ✅ Updated for Node v22+
+
 const app = express();
 
-// Serve all files in the project folder as static files
+// --------------------------
+// 1️⃣ Serve static files
+// --------------------------
+// This allows https://live-chat-4i3s.onrender.com/chat-widget.js to load
 app.use(express.static(path.join(__dirname)));
-const server = app.listen(3000, () => {
-  console.log("✅ Server running on http://localhost:3000");
-});
 
-const wss = new WebSocket.Server({ server });
+// --------------------------
+// 2️⃣ Start Express server
+// --------------------------
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Express server running on port ${port}`));
 
-let users = new Map(); // sessionId → socket
-let supportSocket = null;
+// --------------------------
+// 3️⃣ Start WebSocket server
+// --------------------------
+const wssPort = process.env.WS_PORT || 8080; // you can configure via Render env if needed
+const wss = new WebSocketServer({ port: wssPort });
 
-wss.on("connection", (ws) => {
-  ws.on("message", (message) => {
-    const data = JSON.parse(message);
+wss.on('connection', (socket) => {
+  console.log('Client connected');
 
-    // Support dashboard joins
-    if (data.type === "support_join") {
-      supportSocket = ws;
-      console.log("🧑‍💻 Support connected");
-      return;
-    }
+  // Send a welcome message immediately
+  socket.send(JSON.stringify({ type: 'welcome', message: 'Hello from server!' }));
 
-    // User joins
-    if (data.type === "join") {
-      ws.sessionId = data.sessionId;
-      users.set(data.sessionId, ws);
-      console.log("User joined:", data.sessionId);
-      return;
-    }
+  // Handle incoming messages
+  socket.on('message', (msg) => {
+    console.log('Received:', msg.toString());
 
-    // User sends message
-    if (data.type === "user_message") {
-      console.log(`User (${ws.sessionId}):`, data.text);
-
-      // Forward to support
-      if (supportSocket) {
-        supportSocket.send(JSON.stringify({
-          type: "user_message",
-          sessionId: ws.sessionId,
-          text: data.text
-        }));
-      }
-    }
-
-    // Support sends message
-    if (data.type === "support_message") {
-      const user = users.get(data.sessionId);
-      if (user) {
-        user.send(JSON.stringify({
-          type: "support_message",
-          text: data.text
-        }));
-      }
-    }
+    // Example: echo message back to sender
+    socket.send(JSON.stringify({ type: 'echo', message: msg.toString() }));
   });
 
-  ws.on("close", () => {
-    if (ws === supportSocket) supportSocket = null;
-    if (ws.sessionId) users.delete(ws.sessionId);
+  socket.on('close', () => {
+    console.log('Client disconnected');
   });
 });
 
-
-
+// Optional: Broadcast to all clients
+function broadcast(data) {
+  const message = JSON.stringify(data);
+  wss.clients.forEach((client) => {
+    if (client.readyState === client.OPEN) {
+      client.send(message);
+    }
+  });
+}
