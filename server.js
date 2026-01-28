@@ -3,7 +3,7 @@ const path = require('path');
 const app = express();
 
 // Serve all files in the project folder as static files
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname)));
 const server = app.listen(3000, () => {
   console.log("✅ Server running on http://localhost:3000");
 });
@@ -63,5 +63,6 @@ wss.on("connection", (ws) => {
     if (ws.sessionId) users.delete(ws.sessionId);
   });
 });
+
 
 
