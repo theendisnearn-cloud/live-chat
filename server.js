@@ -1,91 +1,52 @@
 // server.js
 const express = require("express");
+const WebSocket = require("ws");
+const multer = require("multer"); // file uploads
 const path = require("path");
-const http = require("http");
-const { WebSocketServer } = require("ws");
 
 const app = express();
+const port = process.env.PORT || 3000;
 
-// --------------------
 // Serve static files
-// --------------------
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, "public")));
 
-// --------------------
-// Create HTTP server
-// --------------------
-const server = http.createServer(app);
+// File upload setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+});
+const upload = multer({ storage });
 
-// --------------------
+// Upload endpoint
+app.post("/upload", upload.single("file"), (req, res) => {
+  res.json({ filename: req.file.filename });
+});
+
 // WebSocket server
-// --------------------
-const wss = new WebSocketServer({ server });
+const server = app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
 
-let users = new Map();
-let supports = new Set();
+const wss = new WebSocket.Server({ server });
+
+let clients = [];
 
 wss.on("connection", (ws) => {
+  clients.push(ws);
+  console.log("New WebSocket connection");
+
   ws.on("message", (message) => {
-    const data = JSON.parse(message.toString());
+    console.log("Received:", message);
 
-    if (data.type === "support_join") {
-      ws.isSupport = true;
-      supports.add(ws);
-      console.log("🧑‍💻 Support connected");
-      return;
-    }
-
-    if (data.type === "join") {
-      ws.sessionId = data.sessionId;
-      users.set(ws.sessionId, ws);
-      console.log("👤 User joined:", ws.sessionId);
-      return;
-    }
-
-    if (data.type === "user_message") {
-      supports.forEach((support) => {
-        support.send(JSON.stringify({
-          type: "user_message",
-          sessionId: ws.sessionId,
-          text: data.text,
-          time: Date.now()
-        }));
-      });
-    }
-
-    if (data.type === "support_message") {
-      const user = users.get(data.sessionId);
-      if (user) {
-        user.send(JSON.stringify({
-          type: "support_message",
-          text: data.text,
-          time: Date.now()
-        }));
+    // Broadcast to all clients
+    clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
       }
-    }
+    });
   });
 
   ws.on("close", () => {
-    if (ws.isSupport) supports.delete(ws);
-    if (ws.sessionId) users.delete(ws.sessionId);
+    clients = clients.filter((c) => c !== ws);
   });
 });
-const multer = require("multer");
-const upload = multer({ dest: "uploads/" });
-
-app.post("/upload", upload.single("file"), (req, res) => {
-  res.json({
-    url: `/uploads/${req.file.filename}`,
-    name: req.file.originalname
-  });
-});
-
-app.use("/uploads", express.static("uploads"));
-// --------------------
-// Start server
-// --------------------
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
-
