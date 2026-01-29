@@ -2,65 +2,47 @@
 <html>
 <head>
   <title>Support Dashboard</title>
+  <style>
+    #messages { max-height: 500px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; }
+    .customer-msg { color: blue; margin-bottom: 5px; }
+    .support-msg { color: green; margin-bottom: 5px; }
+  </style>
 </head>
 <body>
+  <h1>Support Dashboard</h1>
+  <div id="messages"></div>
+  <input id="support-input" placeholder="Type message..." />
+  <button id="send-btn">Send</button>
 
-<h2>Support Dashboard</h2>
+  <script>
+    const ws = new WebSocket("wss://live-chat-4i3s.onrender.com");
+    const messages = document.getElementById("messages");
+    const input = document.getElementById("support-input");
+    const btn = document.getElementById("send-btn");
 
-<div id="log" style="border:1px solid #ccc;height:300px;overflow:auto;padding:10px;"></div>
+    ws.onopen = () => console.log("Support WS connected");
+    ws.onmessage = (event) => displayMessage(event.data);
 
-<input id="session" placeholder="Session ID" />
-<input id="reply" placeholder="Type reply..." />
-<button id="send">Send</button>
+    btn.addEventListener("click", sendMessage);
 
-<script>
-  function getTime(ts = Date.now()) {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
-
-  const socket = new WebSocket("wss://YOUR_RENDER_URL");
-
-  socket.onopen = () => {
-    socket.send(JSON.stringify({ type: "support_join" }));
-  };
-
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-
-    if (data.type === "user_message") {
-      document.getElementById("log").innerHTML += `
-        <div style="margin-bottom:10px;">
-          <b>Customer</b> (${data.sessionId})<br>
-          ${data.text}<br>
-          <small>${getTime(data.time)}</small>
-        </div>
-      `;
-      document.getElementById("session").value = data.sessionId;
+    function sendMessage() {
+      const msg = input.value.trim();
+      if (!msg) return;
+      const payload = { role: "support", message: msg, timestamp: new Date().toISOString() };
+      ws.send(JSON.stringify(payload));
+      displayMessage(JSON.stringify(payload));
+      input.value = "";
     }
-  };
 
-  document.getElementById("send").onclick = () => {
-    const text = document.getElementById("reply").value;
-    const sessionId = document.getElementById("session").value;
-
-    socket.send(JSON.stringify({
-      type: "support_message",
-      sessionId,
-      text
-    }));
-
-    document.getElementById("log").innerHTML += `
-      <div style="margin-bottom:10px;text-align:right;">
-        <b>Support</b><br>
-        ${text}<br>
-        <small>${getTime()}</small>
-      </div>
-    `;
-
-    document.getElementById("reply").value = "";
-  };
-</script>
-
+    function displayMessage(raw) {
+      let data;
+      try { data = JSON.parse(raw); } catch { return; }
+      const div = document.createElement("div");
+      div.className = data.role === "customer" ? "customer-msg" : "support-msg";
+      div.innerText = `[${new Date(data.timestamp).toLocaleTimeString()}] ${data.role.toUpperCase()}: ${data.message}`;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+  </script>
 </body>
 </html>

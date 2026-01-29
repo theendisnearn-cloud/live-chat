@@ -1,69 +1,52 @@
+// server.js
 const express = require("express");
 const WebSocket = require("ws");
-const cors = require("cors");
+const multer = require("multer"); // file uploads
+const path = require("path");
 
 const app = express();
-app.use(cors());
+const port = process.env.PORT || 3000;
 
-const server = app.listen(process.env.PORT || 3000, () => {
-  console.log("✅ Server running");
+// Serve static files
+app.use(express.static(path.join(__dirname, "public")));
+
+// File upload setup
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+});
+const upload = multer({ storage });
+
+// Upload endpoint
+app.post("/upload", upload.single("file"), (req, res) => {
+  res.json({ filename: req.file.filename });
+});
+
+// WebSocket server
+const server = app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
 
 const wss = new WebSocket.Server({ server });
 
-let users = new Map();     // sessionId → user socket
-let supports = new Set(); // all support sockets
+let clients = [];
 
 wss.on("connection", (ws) => {
+  clients.push(ws);
+  console.log("New WebSocket connection");
 
   ws.on("message", (message) => {
-    const data = JSON.parse(message);
+    console.log("Received:", message);
 
-    // Support joins
-    if (data.type === "support_join") {
-      ws.isSupport = true;
-      supports.add(ws);
-      console.log("🧑‍💻 Support connected");
-      return;
-    }
-
-    // User joins
-    if (data.type === "join") {
-      ws.sessionId = data.sessionId;
-      users.set(ws.sessionId, ws);
-      console.log("👤 User joined:", ws.sessionId);
-      return;
-    }
-
-    // User sends message
-    if (data.type === "user_message") {
-      console.log(`👤 ${ws.sessionId}: ${data.text}`);
-
-      supports.forEach(support => {
-        support.send(JSON.stringify({
-          type: "user_message",
-          sessionId: ws.sessionId,
-          text: data.text,
-          time: Date.now()
-        }));
-      });
-    }
-
-    // Support sends message
-    if (data.type === "support_message") {
-      const user = users.get(data.sessionId);
-      if (user) {
-        user.send(JSON.stringify({
-          type: "support_message",
-          text: data.text,
-          time: Date.now()
-        }));
+    // Broadcast to all clients
+    clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
       }
-    }
+    });
   });
 
   ws.on("close", () => {
-    if (ws.isSupport) supports.delete(ws);
-    if (ws.sessionId) users.delete(ws.sessionId);
+    clients = clients.filter((c) => c !== ws);
   });
 });
