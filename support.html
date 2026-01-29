@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html>
 <head>
@@ -46,3 +47,53 @@
   </script>
 </body>
 </html>
+=======
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Support Dashboard</title>
+  <style>
+    #messages { max-height: 500px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; }
+    .customer-msg { color: blue; margin-bottom: 5px; }
+    .support-msg { color: green; margin-bottom: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Support Dashboard</h1>
+  <div id="messages"></div>
+  <input id="support-input" placeholder="Type message..." />
+  <button id="send-btn">Send</button>
+
+  <script>
+    const ws = new WebSocket("wss://live-chat-4i3s.onrender.com");
+    const messages = document.getElementById("messages");
+    const input = document.getElementById("support-input");
+    const btn = document.getElementById("send-btn");
+
+    ws.onopen = () => console.log("Support WS connected");
+    ws.onmessage = (event) => displayMessage(event.data);
+
+    btn.addEventListener("click", sendMessage);
+
+    function sendMessage() {
+      const msg = input.value.trim();
+      if (!msg) return;
+      const payload = { role: "support", message: msg, timestamp: new Date().toISOString() };
+      ws.send(JSON.stringify(payload));
+      displayMessage(JSON.stringify(payload));
+      input.value = "";
+    }
+
+    function displayMessage(raw) {
+      let data;
+      try { data = JSON.parse(raw); } catch { return; }
+      const div = document.createElement("div");
+      div.className = data.role === "customer" ? "customer-msg" : "support-msg";
+      div.innerText = `[${new Date(data.timestamp).toLocaleTimeString()}] ${data.role.toUpperCase()}: ${data.message}`;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    }
+  </script>
+</body>
+</html>
+>>>>>>> 34317bab3a7b55849aac0f30ad63518a0c0857ae
