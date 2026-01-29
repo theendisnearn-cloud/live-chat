@@ -1,52 +1,83 @@
-// server.js
+// ============================
+// server.js (FINAL)
+// ============================
+
 const express = require("express");
-const WebSocket = require("ws");
-const multer = require("multer"); // file uploads
 const path = require("path");
+const http = require("http");
+const { WebSocketServer } = require("ws");
+const multer = require("multer");
 
+// ----------------------------
+// App + Server
+// ----------------------------
 const app = express();
-const port = process.env.PORT || 3000;
+const server = http.createServer(app);
+const PORT = process.env.PORT || 3000;
 
+// ----------------------------
 // Serve static files
-app.use(express.static(path.join(__dirname, "public")));
+// (chat-widget.js, support.html)
+// ----------------------------
+app.use(express.static(path.join(__dirname)));
 
-// File upload setup
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
-});
-const upload = multer({ storage });
+// ----------------------------
+// Multer (file uploads – ready)
+// ----------------------------
+const upload = multer({ dest: "uploads/" });
 
-// Upload endpoint
 app.post("/upload", upload.single("file"), (req, res) => {
-  res.json({ filename: req.file.filename });
+  res.json({
+    success: true,
+    file: req.file,
+  });
 });
 
+// ----------------------------
+// Support dashboard route
+// ----------------------------
+app.get("/support", (req, res) => {
+  res.sendFile(path.join(__dirname, "support.html"));
+});
+
+// ----------------------------
+// Start HTTP server
+// ----------------------------
+server.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+});
+
+// ----------------------------
 // WebSocket server
-const server = app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
-
-const wss = new WebSocket.Server({ server });
-
-let clients = [];
+// ----------------------------
+const wss = new WebSocketServer({ server });
 
 wss.on("connection", (ws) => {
-  clients.push(ws);
-  console.log("New WebSocket connection");
+  console.log("🟢 WebSocket client connected");
 
-  ws.on("message", (message) => {
-    console.log("Received:", message);
+  ws.on("message", (raw) => {
+    let data;
+    try {
+      data = JSON.parse(raw.toString());
+    } catch (err) {
+      console.error("❌ Invalid JSON:", raw.toString());
+      return;
+    }
 
-    // Broadcast to all clients
-    clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
+    // Ensure required fields
+    if (!data.timestamp) {
+      data.timestamp = new Date().toISOString();
+    }
+
+    // Broadcast to ALL connected clients
+    wss.clients.forEach((client) => {
+      if (client.readyState === 1) {
+        client.send(JSON.stringify(data));
       }
     });
   });
 
   ws.on("close", () => {
-    clients = clients.filter((c) => c !== ws);
+    console.log("🔴 WebSocket client disconnected");
   });
 });
