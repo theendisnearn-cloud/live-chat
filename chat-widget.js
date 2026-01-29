@@ -1,153 +1,152 @@
-console.log("🧩 chat-widget.js executing");
 (function () {
+
+  function time(ts = Date.now()) {
+    return new Date(ts).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
   const sessionId =
     localStorage.getItem("chat_session") ||
-    Math.random().toString(36).substring(2);
+    Math.random().toString(36).slice(2);
 
   localStorage.setItem("chat_session", sessionId);
 
   const socket = new WebSocket("wss://live-chat-4i3s.onrender.com");
 
-  // ---- STYLES ----
+  /* ---------- STYLES ---------- */
   const style = document.createElement("style");
-  style.innerHTML = `
-    #chat-launcher {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: #2563eb;
-      color: white;
-      width: 56px;
-      height: 56px;
+  style.textContent = `
+    #lc-btn {
+      position: fixed; bottom: 20px; right: 20px;
+      width: 56px; height: 56px;
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 24px;
-      box-shadow: 0 10px 25px rgba(0,0,0,.2);
-      z-index: 9999;
+      background: #2563eb; color: white;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.3);
+      z-index: 99999;
     }
 
-    #chat-box {
-      position: fixed;
-      bottom: 90px;
-      right: 20px;
-      width: 320px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 20px 40px rgba(0,0,0,.2);
-      font-family: Inter, Arial, sans-serif;
-      display: none;
-      flex-direction: column;
-      overflow: hidden;
-      z-index: 9999;
+    #lc-box {
+      position: fixed; bottom: 90px; right: 20px;
+      width: 340px; height: 440px;
+      background: white; border-radius: 14px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.3);
+      display: none; flex-direction: column;
+      font-family: Arial, sans-serif;
+      overflow: hidden; z-index: 99999;
     }
 
-    #chat-header {
-      background: #2563eb;
-      color: white;
-      padding: 14px;
-      font-weight: bold;
+    #lc-header {
+      background: #2563eb; color: white;
+      padding: 14px; font-weight: bold;
     }
 
-    #chat-messages {
-      flex: 1;
-      padding: 12px;
-      overflow-y: auto;
-      background: #f9fafb;
+    #lc-msgs {
+      flex: 1; padding: 12px;
+      background: #f9fafb; overflow-y: auto;
     }
 
-    .msg-user {
-      text-align: right;
-      margin-bottom: 8px;
-    }
+    .msg { margin-bottom: 12px; }
+    .cust { text-align: right; }
+    .sup { text-align: left; }
 
-    .msg-user span {
-      background: #2563eb;
-      color: white;
+    .bubble {
+      display: inline-block;
       padding: 8px 12px;
       border-radius: 12px;
-      display: inline-block;
       max-width: 80%;
+      font-size: 14px;
     }
 
-    .msg-support {
-      text-align: left;
-      margin-bottom: 8px;
+    .cust .bubble { background:#2563eb; color:white; }
+    .sup .bubble { background:#e5e7eb; }
+
+    .meta {
+      font-size: 11px;
+      color: #6b7280;
+      margin-top: 2px;
     }
 
-    .msg-support span {
-      background: #e5e7eb;
-      padding: 8px 12px;
-      border-radius: 12px;
-      display: inline-block;
-      max-width: 80%;
-    }
-
-    #chat-input {
-      border: none;
-      padding: 12px;
-      outline: none;
+    #lc-input {
       border-top: 1px solid #ddd;
+      display: flex; gap: 6px;
+      padding: 8px;
+    }
+
+    #lc-input input[type="text"] {
+      flex: 1; padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
     }
   `;
   document.head.appendChild(style);
 
-  // ---- HTML ----
-  const launcher = document.createElement("div");
-  launcher.id = "chat-launcher";
-  launcher.innerHTML = "💬";
+  /* ---------- HTML ---------- */
+  const btn = document.createElement("div");
+  btn.id = "lc-btn";
+  btn.textContent = "💬";
 
   const box = document.createElement("div");
-  box.id = "chat-box";
+  box.id = "lc-box";
   box.innerHTML = `
-    <div id="chat-header">Support</div>
-    <div id="chat-messages"></div>
-    <input id="chat-input" placeholder="Type your message..." />
+    <div id="lc-header">Live Support</div>
+    <div id="lc-msgs"></div>
+    <div id="lc-input">
+      <input id="lc-text" type="text" placeholder="Type message…" />
+      <input id="lc-file" type="file" />
+    </div>
   `;
 
-  document.body.appendChild(launcher);
-  document.body.appendChild(box);
+  document.body.append(btn, box);
 
-  const messages = box.querySelector("#chat-messages");
-  const input = box.querySelector("#chat-input");
-
-  launcher.onclick = () => {
+  btn.onclick = () => {
     box.style.display = box.style.display === "flex" ? "none" : "flex";
   };
 
+  const msgs = box.querySelector("#lc-msgs");
+  const text = box.querySelector("#lc-text");
+  const file = box.querySelector("#lc-file");
+
   socket.onopen = () => {
-    socket.send(JSON.stringify({
-      type: "join",
-      sessionId
-    }));
+    socket.send(JSON.stringify({ type: "join", sessionId }));
   };
 
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (data.type === "support_message") {
-      messages.innerHTML +=
-        `<div class="msg-support"><span>${data.text}</span></div>`;
-      messages.scrollTop = messages.scrollHeight;
+  socket.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.type === "support_message") {
+      msgs.innerHTML += `
+        <div class="msg sup">
+          <div class="bubble">
+            <b>Support</b><br>${d.text}
+          </div>
+          <div class="meta">${time(d.time)}</div>
+        </div>
+      `;
+      msgs.scrollTop = msgs.scrollHeight;
     }
   };
 
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && input.value.trim()) {
-      const text = input.value;
-
+  text.addEventListener("keydown", e => {
+    if (e.key === "Enter" && text.value.trim()) {
       socket.send(JSON.stringify({
         type: "user_message",
         sessionId,
-        text
+        text: text.value
       }));
 
-      messages.innerHTML +=
-        `<div class="msg-user"><span>${text}</span></div>`;
-      messages.scrollTop = messages.scrollHeight;
-      input.value = "";
+      msgs.innerHTML += `
+        <div class="msg cust">
+          <div class="bubble">
+            <b>You</b><br>${text.value}
+          </div>
+          <div class="meta">${time()}</div>
+        </div>
+      `;
+      text.value = "";
+      msgs.scrollTop = msgs.scrollHeight;
     }
   });
-})();
 
+})();
