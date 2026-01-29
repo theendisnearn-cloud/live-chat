@@ -70,7 +70,17 @@ wss.on("connection", (ws) => {
     if (ws.sessionId) users.delete(ws.sessionId);
   });
 });
+const multer = require("multer");
+const upload = multer({ dest: "uploads/" });
 
+app.post("/upload", upload.single("file"), (req, res) => {
+  res.json({
+    url: `/uploads/${req.file.filename}`,
+    name: req.file.originalname
+  });
+});
+
+app.use("/uploads", express.static("uploads"));
 // --------------------
 // Start server
 // --------------------
@@ -78,3 +88,4 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
+
