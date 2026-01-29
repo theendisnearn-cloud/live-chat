@@ -1,53 +1,80 @@
 // server.js
-const express = require('express');
-const path = require('path');
-const { WebSocketServer } = require('wss'); // ✅ Updated for Node v22+
+const express = require("express");
+const path = require("path");
+const http = require("http");
+const { WebSocketServer } = require("ws");
 
 const app = express();
 
-// --------------------------
-// 1️⃣ Serve static files
-// --------------------------
-// This allows https://live-chat-4i3s.onrender.com/chat-widget.js to load
+// --------------------
+// Serve static files
+// --------------------
 app.use(express.static(path.join(__dirname)));
 
-// --------------------------
-// 2️⃣ Start Express server
-// --------------------------
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Express server running on port ${port}`));
+// --------------------
+// Create HTTP server
+// --------------------
+const server = http.createServer(app);
 
-// --------------------------
-// 3️⃣ Start WebSocket server
-// --------------------------
-const wssPort = process.env.WS_PORT || 8080; // you can configure via Render env if needed
-const wss = new WebSocketServer({ port: wssPort });
+// --------------------
+// WebSocket server
+// --------------------
+const wss = new WebSocketServer({ server });
 
-wss.on('connection', (socket) => {
-  console.log('Client connected');
+let users = new Map();
+let supports = new Set();
 
-  // Send a welcome message immediately
-  socket.send(JSON.stringify({ type: 'welcome', message: 'Hello from server!' }));
+wss.on("connection", (ws) => {
+  ws.on("message", (message) => {
+    const data = JSON.parse(message.toString());
 
-  // Handle incoming messages
-  socket.on('message', (msg) => {
-    console.log('Received:', msg.toString());
+    if (data.type === "support_join") {
+      ws.isSupport = true;
+      supports.add(ws);
+      console.log("🧑‍💻 Support connected");
+      return;
+    }
 
-    // Example: echo message back to sender
-    socket.send(JSON.stringify({ type: 'echo', message: msg.toString() }));
+    if (data.type === "join") {
+      ws.sessionId = data.sessionId;
+      users.set(ws.sessionId, ws);
+      console.log("👤 User joined:", ws.sessionId);
+      return;
+    }
+
+    if (data.type === "user_message") {
+      supports.forEach((support) => {
+        support.send(JSON.stringify({
+          type: "user_message",
+          sessionId: ws.sessionId,
+          text: data.text,
+          time: Date.now()
+        }));
+      });
+    }
+
+    if (data.type === "support_message") {
+      const user = users.get(data.sessionId);
+      if (user) {
+        user.send(JSON.stringify({
+          type: "support_message",
+          text: data.text,
+          time: Date.now()
+        }));
+      }
+    }
   });
 
-  socket.on('close', () => {
-    console.log('Client disconnected');
+  ws.on("close", () => {
+    if (ws.isSupport) supports.delete(ws);
+    if (ws.sessionId) users.delete(ws.sessionId);
   });
 });
 
-// Optional: Broadcast to all clients
-function broadcast(data) {
-  const message = JSON.stringify(data);
-  wss.clients.forEach((client) => {
-    if (client.readyState === client.OPEN) {
-      client.send(message);
-    }
-  });
-}
+// --------------------
+// Start server
+// --------------------
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`✅ Server running on port ${PORT}`);
+});
