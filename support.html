@@ -13,30 +13,56 @@
   <button id="send">Send</button>
 
   <script>
-    const socket = new WebSocket("ws://localhost:3000");
+  function getTime(ts = Date.now()) {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
 
-    socket.onopen = () => {
-      socket.send(JSON.stringify({ type: "support_join" }));
-    };
+  const socket = new WebSocket("wss://live-chat-4i3s.onrender.com");
 
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+  socket.onopen = () => {
+    console.log("✅ Support connected to WebSocket");
+    socket.send(JSON.stringify({ type: "support_join" }));
+  };
 
-      if (data.type === "user_message") {
-        document.getElementById("log").innerHTML +=
-          `<div><b>User (${data.sessionId}):</b> ${data.text}</div>`;
-        document.getElementById("session").value = data.sessionId;
-      }
-    };
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log("📩 Received:", data);
 
-    document.getElementById("send").onclick = () => {
-      socket.send(JSON.stringify({
-        type: "support_message",
-        sessionId: document.getElementById("session").value,
-        text: document.getElementById("reply").value
-      }));
-      document.getElementById("reply").value = "";
-    };
-  </script>
+    if (data.type === "user_message") {
+      document.getElementById("log").innerHTML += `
+        <div style="margin-bottom:10px;">
+          <b>Customer</b> (${data.sessionId})<br>
+          ${data.text}<br>
+          <small>${getTime(data.time)}</small>
+        </div>
+      `;
+
+      document.getElementById("session").value = data.sessionId;
+    }
+  };
+
+  document.getElementById("send").onclick = () => {
+    const text = document.getElementById("reply").value;
+    const sessionId = document.getElementById("session").value;
+
+    socket.send(JSON.stringify({
+      type: "support_message",
+      sessionId,
+      text
+    }));
+
+    document.getElementById("log").innerHTML += `
+      <div style="margin-bottom:10px;text-align:right;">
+        <b>Support</b><br>
+        ${text}<br>
+        <small>${getTime()}</small>
+      </div>
+    `;
+
+    document.getElementById("reply").value = "";
+  };
+</script>
 </body>
+
 </html>
