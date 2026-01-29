@@ -1,48 +1,74 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Support Dashboard</title>
-  <style>
-    #messages { max-height: 500px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; }
-    .customer-msg { color: blue; margin-bottom: 5px; }
-    .support-msg { color: green; margin-bottom: 5px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Support Dashboard</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+  #chat-container { width: 500px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); display: flex; flex-direction: column; height: 600px; }
+  #messages { flex: 1; padding: 10px; overflow-y: auto; font-size: 14px; }
+  .message { margin-bottom: 10px; }
+  .message strong { color: #0b0e11; }
+  .message span { color: #888; font-size: 12px; margin-left: 4px; }
+  #input-container { display: flex; border-top: 1px solid #ddd; }
+  #input { flex: 1; padding: 10px; border: none; outline: none; font-size: 14px; }
+  #send { padding: 10px 14px; border: none; background: #f0b90b; cursor: pointer; font-weight: bold; }
+</style>
 </head>
 <body>
-  <h1>Support Dashboard</h1>
+
+<div id="chat-container">
   <div id="messages"></div>
-  <input id="support-input" placeholder="Type message..." />
-  <button id="send-btn">Send</button>
+  <div id="input-container">
+    <input id="input" placeholder="Type message…" />
+    <button id="send">Send</button>
+  </div>
+</div>
 
-  <script>
-    const ws = new WebSocket("wss://live-chat-4i3s.onrender.com");
-    const messages = document.getElementById("messages");
-    const input = document.getElementById("support-input");
-    const btn = document.getElementById("send-btn");
+<script>
+  const messages = document.getElementById("messages");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
 
-    ws.onopen = () => console.log("Support WS connected");
-    ws.onmessage = (event) => displayMessage(event.data);
+  const ws = new WebSocket("wss://live-chat-4i3s.onrender.com");
 
-    btn.addEventListener("click", sendMessage);
+  ws.onopen = () => {
+    console.log("✅ Support connected to WebSocket");
+    ws.send(JSON.stringify({ sender: "support", text: "Support connected", timestamp: new Date().toISOString() }));
+  };
 
-    function sendMessage() {
-      const msg = input.value.trim();
-      if (!msg) return;
-      const payload = { role: "support", message: msg, timestamp: new Date().toISOString() };
-      ws.send(JSON.stringify(payload));
-      displayMessage(JSON.stringify(payload));
-      input.value = "";
-    }
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
 
-    function displayMessage(raw) {
-      let data;
-      try { data = JSON.parse(raw); } catch { return; }
-      const div = document.createElement("div");
-      div.className = data.role === "customer" ? "customer-msg" : "support-msg";
-      div.innerText = `[${new Date(data.timestamp).toLocaleTimeString()}] ${data.role.toUpperCase()}: ${data.message}`;
-      messages.appendChild(div);
-      messages.scrollTop = messages.scrollHeight;
-    }
-  </script>
+    const div = document.createElement("div");
+    div.className = "message";
+
+    const time = new Date(data.timestamp).toLocaleTimeString();
+
+    div.innerHTML = `<strong>${data.sender}</strong> <span>(${time})</span>: ${data.text}`;
+    messages.appendChild(div);
+
+    messages.scrollTop = messages.scrollHeight;
+  };
+
+  sendBtn.onclick = () => {
+    if (!input.value) return;
+
+    const msg = {
+      sender: "support",
+      text: input.value,
+      timestamp: new Date().toISOString()
+    };
+
+    ws.send(JSON.stringify(msg));
+    input.value = "";
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendBtn.click();
+  });
+</script>
+
 </body>
 </html>
